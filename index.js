@@ -1,5 +1,7 @@
+require('dotenv').config();
 const express = require('express');
 const morgan = require('morgan');
+const Person = require('./models/person')
 
 const app = express()
 
@@ -16,35 +18,16 @@ const requestLogger = (request, response, next) => {
 }
 
 app.use(express.json())
-//app.use(requestLogger)
-app.use(morgan(':method :url :status :res[content-length] - :response-time ms - body: :body'));
+app.use(requestLogger)
+// app.use(morgan(':method :url :status :res[content-length] - :response-time ms - body: :body'));
 app.use(express.static('dist'));
 
-let persons = [
-    { 
-      "id": "1",
-      "name": "Arto Hellas", 
-      "number": "040-123456"
-    },
-    { 
-      "id": "2",
-      "name": "Ada Lovelace", 
-      "number": "39-44-5323523"
-    },
-    { 
-      "id": "3",
-      "name": "Dan Abramov", 
-      "number": "12-43-234345"
-    },
-    { 
-      "id": "4",
-      "name": "Mary Poppendieck", 
-      "number": "39-23-6423122"
-    }
-]
+let persons = []
 
 app.get('/api/persons', (req, res) => {
-    res.json(persons);
+    Person.find({}).then(people => {
+        res.json(people);
+    })
 })
 
 app.get('/info', (req, res) => {
@@ -73,11 +56,15 @@ app.delete('/api/persons/:id', (req, res) => {
 
 app.post('/api/persons', (req, res) => {
     const person = req.body
-    if (persons.find(p => p.name === person.name)){
-        return res.status(400).json({
-            error: "person is already in phonebook"
-        })
-    }
+ 
+    Person.findOne({ name: person.name }).then(existingPerson => {
+        if (existingPerson) {
+            return res.status(400).json({
+                error: "person is already in phonebook",
+            });
+        }
+    })
+
     if (!person.name){
         return res.status(400).json({
             error: 'name missing'
@@ -87,9 +74,15 @@ app.post('/api/persons', (req, res) => {
             error: 'number missing'
         })
     }
-    person.id = String(Math.floor(Math.random() * 10000000000));
-    persons = persons.concat(person);
-    res.json(person);
+
+    const newPerson = new Person({
+       name: person.name,
+       number: person.number
+    });
+
+    newPerson.save().then(savedPerson => {
+        res.json(savedPerson);
+    })
 })
 
 const unknownEndpoint = (request, response) => {
